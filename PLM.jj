@@ -1,0 +1,450 @@
+/* PLM */
+
+options {
+  STATIC = false;
+}
+
+PARSER_BEGIN(Assignment)
+import java.util.*;
+public class Assignment{
+
+  /* FNTArray stored encountered function names as tokens */
+  static ArrayList<Token> FNTArray = new ArrayList<Token>();
+  /* FNSArray stores encountered function names as strings*/
+  static ArrayList<String> FNSArray = new ArrayList<String>();
+  /* mainCall stores a boolean value corresponding to whether the main function has
+  been encountered yet*/
+  int mainCall = 0;
+  ArrayList<String> functionCallArray = new ArrayList<String>();
+  /* loopMap is used to check for loops in functions,
+  String is function name, and LinkedList<Token> is a list of all
+  function calls of that function */
+  /* Then to fill this hashmap 2 lists of type Token are defined */
+  static Map<String, LinkedList<Token>> loopMap = new HashMap<String, LinkedList<Token>>();
+  LinkedList<Token> loopList = new LinkedList<Token>();
+  LinkedList<Token> tempLoopList = new LinkedList<Token>();
+  Map<String, LinkedList<functionToken>> tokenMap = new HashMap<String, LinkedList<functionToken>>();
+  /* functionArray is a list of functions that is compared with calls made
+  by functions, if function A calls function B and function B calls function A
+  then we know an infinite loop is present */
+  static ArrayList<Token> functionArray = new ArrayList<Token>();
+  int functionCount = 0;
+  LinkedList<Token> tokenList = new LinkedList<Token>();
+  LinkedList<Token> tempTokenList = new LinkedList<Token>();
+
+  public static void main(String args []) throws ParseException   {
+   
+    Assignment parser = new Assignment(System.in);
+    try{ /* Try starting the parsing */
+      parser.Root();
+    } catch (ParseException e) { /* Catch any parse errors while trying */
+      // If no def is found at start of line
+      if (e.currentToken.next.image.equals("DEF") == false && (e.expectedTokenSequences[0][0] == 5 || e.expectedTokenSequences[0][0] == 0)){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Expecting DEF at start of line");
+        System.exit(0);
+      }
+      // If function name is not just upper case letters
+      if (e.currentToken.next.kind != 7 && (e.expectedTokenSequences[0][0] == 7 || e.expectedTokenSequences[0][0] == 2 || e.expectedTokenSequences[0][0] == 6)){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Function name is not entirely composed of upper case letters");
+        System.exit(0);
+      }
+      // If parameter name is not just lower case letters
+      if (e.currentToken.next.kind != 4 && (e.expectedTokenSequences[0][0] == 2 || e.expectedTokenSequences[0][0] == 4)){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Parameter name is not entirely composed of lower case letters");
+      }
+      // If left brace encountered when parameter should have been
+      if (e.currentToken.next.kind == 12 && e.expectedTokenSequences[0][0] == 4){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Missing parameters");
+      }
+      // If left brace not encountered when it should be
+      if (e.currentToken.next.kind != 12 && e.expectedTokenSequences[0][0] == 5){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Missing left brace");
+      }
+      // If close bracket, right brace encountered where a function/variable/number should be
+      if ((e.currentToken.next.kind == 11 || e.currentToken.next.kind == 13) && (e.expectedTokenSequences[0][0] == 7 || e.expectedTokenSequences[0][0] == 4 || e.expectedTokenSequences[0][0] == 3)){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Function body not found");
+        System.exit(0);
+      }
+      // If semi-colon not found at where it should be
+      if (e.currentToken.next.kind != 9 || e.expectedTokenSequences[0][0] == 9){
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Semicolon not found");
+        System.exit(0);
+      }
+      // If error was not any of the previous, will be due to spaces
+      else {
+        System.out.println("FAIL");
+        System.err.println("Fail at line " + e.currentToken.beginLine);
+        System.err.println("Spaces used incorrectly");
+        System.exit(0);
+      }
+    } catch (TokenMgrError te) {
+      System.out.println("FAIL");
+      System.err.println("Lexical error: invalid character");
+      System.exit(0);
+    }
+
+    // Now check for infinite loops
+    for (int i = 0; i < FNTArray.size(); i++){
+      functionArray.clear();
+      infiniteLoopChecker(FNTArray.get(0));
+    }
+
+    // If passed parsing and lexical checks, as well as infinite loop check, then pass
+    System.out.println("PASS");
+  }
+
+  /* This function simply checks if infinite loops are present in the form
+  of function A calling function B calling function A etc... */
+  public static void infiniteLoopChecker(Token token1){
+    functionArray.add(token1);
+    // Different tokenList than before, its a natural name for list of tokens
+    LinkedList<Token> tokenList2 = new LinkedList<Token>();
+    tokenList2 = (LinkedList<Token>) loopMap.get(token1.image).clone();
+    for (int i = 0; i < tokenList2.size(); i++){
+      if (functionArray.contains(tokenList2.get(i))){
+        System.err.println("There is an infinite loop in functions");
+        System.exit(0);
+      } else {
+        infiniteLoopChecker(tokenList2.get(i));
+      }
+    }
+  }
+
+  /* Here I define a custom class functionToken
+  It's use is in navigating the body of functions  */
+  static class functionToken{
+    Token token1;
+    LinkedList<functionToken> functiontokenList = new LinkedList<functionToken>();
+    functionToken() {}
+    
+    Token getToken(){
+      return token1;
+    }
+
+    int setToken(Token token2){
+      token1 = token2;
+      return 1;
+    }
+  }
+}
+
+PARSER_END(Assignment)
+
+/*------------------------ Lexical definitions*/
+
+/* token for end of line */
+TOKEN:{<EOL:"\n"|"\r"|"\r\n">}
+
+/* token for spaces */
+TOKEN:{<SPACE:" ">}
+
+/* token for digits */
+TOKEN:{<NUMBER:<DIGITS>>}
+
+/* token for parameters */
+TOKEN:{<PARAMETER:<LOWERS>>}
+
+/* token for DEF */
+TOKEN:{<DEF:"DEF">}
+
+/* token for main function definition
+defined before token for generic function name so
+that it can actually be matched, otherwise will always match
+to FUNCTIONNAME since "MAIN" satisfies the regular expression for <CAPITALS> */
+TOKEN:{<MAINNAME:"MAIN">}
+
+/* token for generic function name */
+TOKEN:{<FUNCTIONNAME:<CAPITALS>>}
+
+/* token for function parameter */
+TOKEN:{<FUNCTIONPARAMETER:<LOWERS>>}
+
+/* token for semicolon */
+TOKEN:{<SCOLON:";">}
+
+/* Bracket/brace tokens */
+TOKEN:
+{
+    <OBRAC:"(">
+  | <CBRAC:")">
+  | <LBRACE:"{">
+  | <RBRACE:"}">
+}
+
+/* Arithmetic tokens */
+
+TOKEN:
+{
+    <PLUS:"+">
+  | <MULTIPLY:"*">
+}
+
+/* Lexer local tokens, used for readability */
+
+TOKEN:
+{
+    <#CAPITALS:(["A"-"Z"])+>
+  | <#LOWERS:(["a"-"z"])+>
+  | <#DIGITS:(["0"-"9"])+>
+}
+
+/*------------------------ Parsing */
+
+void EvaluateFunctionBody(Token currentParameter):
+{
+  Token functionName;
+  Token number;
+  Token operator;
+  Token newParameter;
+}
+{
+  (
+    /* Checks if first thing in function body is another function name, or number, or variable */
+    /* If its a function name, add to token and loop list to be evaluated and to check
+    for infinite loop, also evaluate the body of this function */
+    functionName = <FUNCTIONNAME>
+    {
+      tempLoopList.add(functionName);
+      tempTokenList.add(functionName);
+      if (functionCallArray.contains(functionName.image) == false){
+        functionCallArray.add(functionName.image);
+      }
+    }
+    <OBRAC>
+    {
+      loopList.addAll(tempLoopList);
+      tempLoopList.clear();
+      tokenList.addAll(tempTokenList);
+      tempTokenList.clear();
+    }
+    EvaluateFunctionBody(currentParameter)
+    <CBRAC>
+    |
+    number = <NUMBER>
+    {
+      tempTokenList.add(number);
+    }
+    |
+    newParameter = <PARAMETER>
+    {
+      tempTokenList.add(newParameter);
+    }
+  )
+  /* Next comes the arithmetic operator in appearance */
+  (
+    (
+      operator = <PLUS>
+      {
+        tempTokenList.add(operator);
+      }
+      |
+      operator = <MULTIPLY>
+      {
+        tempTokenList.add(operator);
+      }
+    )
+    /* Finally comes another function/variable/number */
+    (
+      /* Checks if first thing in function body is another function name, or number, or variable */
+      /* If its a function name, add to token and loop list to be evaluated and to check
+      for infinite loop, also evaluate the body of this function */
+      functionName = <FUNCTIONNAME>
+      {
+        tempLoopList.add(functionName);
+        tempTokenList.add(functionName);
+        if (functionCallArray.contains(functionName.image) == false){
+          functionCallArray.add(functionName.image);
+        }
+      }
+      <OBRAC>
+      {
+        loopList.addAll(tempLoopList);
+        tempLoopList.clear();
+        tokenList.addAll(tempTokenList);
+        tempTokenList.clear();
+      }
+      EvaluateFunctionBody(currentParameter)
+      <CBRAC>
+      |
+      number = <NUMBER>
+      {
+        tempTokenList.add(number);
+      }
+      |
+      newParameter = <PARAMETER>
+      {
+        tempTokenList.add(newParameter);
+      }
+    )
+  /* And it can find any amount of such function bodies */
+  )*
+}
+
+/* Called if main function is enountered in parsing */
+void MainFunction():
+{}
+{
+  {
+    /* Check if Main() was called before, if so, print error and exit,
+    otherwise, set mainCall to 1 */
+    if (mainCall == 1){
+      System.out.println("FAIL");
+      System.out.println("Main has been defined twice");
+      System.exit(0);
+    } else {
+      mainCall = 1;
+    }
+  }
+  <SPACE>
+  <LBRACE>
+  <SPACE>
+  EvaluateFunctionBody(null)
+  <SPACE>
+  {
+    /* Here I populate the tokenMap hashmap */
+    tokenList.addAll(tempTokenList);
+    tempTokenList = (LinkedList<Token>) tokenList.clone();
+    LinkedList<functionToken> fti = new LinkedList<functionToken>();
+    tokenMap.put(FNSArray.get(functionCount), fti);
+    tempTokenList.clear();
+    tokenList.clear();
+
+    /* Here I populate the loopMap hashmap*/
+    loopList.addAll(tempLoopList);
+    tempLoopList.clear();
+    tempLoopList = (LinkedList<Token>) loopList.clone();
+    LinkedList<Token> newTokenList = new LinkedList<Token>();
+    loopMap.put(FNSArray.get(functionCount), newTokenList);
+    loopList.clear();
+    tempLoopList.clear();
+
+    functionCount += 1; 
+  }
+  /* After body - right brace, space, semicolon, end of line */
+  <RBRACE>
+  <SPACE>
+  <SCOLON>
+  <EOL>
+}
+
+/* Called if a generic function is enountered in parsing */
+void GenericFunction():
+{
+  Token parameter;
+}
+{
+  <SPACE>
+  parameter = <PARAMETER>
+  <SPACE>
+  <LBRACE>
+  <SPACE>
+  EvaluateFunctionBody(parameter)
+  <SPACE>
+  {
+    /* Values added just as in main function */
+    tokenList.addAll(tempTokenList);
+    tempTokenList = (LinkedList<Token>) tokenList.clone();
+    LinkedList<functionToken> fti = new LinkedList<functionToken>();
+    tokenMap.put(FNSArray.get(functionCount), fti);
+    tempTokenList.clear();
+    tokenList.clear();
+
+    loopList.addAll(tempLoopList);
+    tempLoopList.clear();
+    tempLoopList = (LinkedList<Token>) loopList.clone();
+    LinkedList<Token> newTokenList = new LinkedList<Token>();
+    loopMap.put(FNSArray.get(functionCount), newTokenList);
+    loopList.clear();
+    tempLoopList.clear();
+
+    functionCount += 1; 
+  }
+  /* again, after body - right brace, space, semicolon, end of line */
+  <RBRACE>
+  <SPACE>
+  <SCOLON>
+  <EOL>
+}
+
+void Root():
+{
+  Token token1;
+  Token token2;
+}
+{
+  (
+    /* Each line begins with a DEF and a space */
+    <DEF>
+    <SPACE>
+    /* Next is some function definition, could be main */
+    (
+      /* if its main... */
+      token1 = <MAINNAME>
+      { /* TODO : MAKE THIS CODE RUN BEFORE CHECK SINCE ITS REPEATED HERE AND FOR TOKEN2 */
+        /* Check if function name was already found
+        if so, print error, otherwise, store in FNSArray */
+        if (FNSArray.contains(token1.image)){
+          System.out.println("FAIL");
+          System.out.println(token1.beginLine);
+          System.out.println("Function defined twice");
+          System.exit(0);
+        } else {
+          FNSArray.add(token1.image);
+        }
+        /* Check if function already stored as token
+        if so, print error, otherwise, store in FNTArray */
+        if (FNTArray.contains(token1.image)){
+          System.out.println("FAIL");
+          System.out.println(token1.beginLine);
+          System.out.println("Function defined twice");
+          System.exit(0);
+        } else {
+          FNTArray.add(token1);
+        }
+      }
+      MainFunction()
+    |
+      /* or if its a generic function... */
+      token2 = <FUNCTIONNAME>
+      {
+        /* Check if function name was already found
+        if so, print error, otherwise, store in FNSArray */
+        if (FNSArray.contains(token2.image)){
+          System.out.println("FAIL");
+          System.out.println(token2.beginLine);
+          System.out.println("Function defined twice");
+          System.exit(0);
+        } else {
+          FNSArray.add(token2.image);
+        }
+        /* Check if function already stored as token
+        if so, print error, otherwise, store in FNTArray */
+        if (FNTArray.contains(token2.image)){
+          System.out.println("FAIL");
+          System.out.println(token2.beginLine);
+          System.out.println("Function defined twice");
+          System.exit(0);
+        } else {
+          FNTArray.add(token2);
+        }
+      }
+      GenericFunction()
+    )
+  )*
+}
+
+
